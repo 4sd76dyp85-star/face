@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎭 脸谱工坊 - Face Mask Studio</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f; --panel: #12121a; --border: #2a2a3a;
+  --accent: #6c5ce7; --accent2: #a29bfe; --text: #e8e8f0;
+  --text-dim: #8888a0; --success: #00b894; --danger: #e17055;
+}
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.header { text-align: center; padding: 18px; background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); border-bottom: 2px solid var(--accent); }
+.header h1 { font-size: 1.8em; background: linear-gradient(135deg, #a29bfe, #6c5ce7, #fd79a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header p { color: var(--text-dim); margin-top: 4px; font-size: 0.85em; }
+.main-container { display: flex; gap: 14px; padding: 14px; max-width: 1600px; margin: 0 auto; min-height: calc(100vh - 90px); }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.panel-title { padding: 12px 16px; font-size: 0.9em; font-weight: 600; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.02); }
+.webcam-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.webcam-container { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 0 0 14px 14px; overflow: hidden; }
+#webcamVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+#faceOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+.webcam-controls { display: flex; gap: 8px; padding: 10px; background: rgba(0,0,0,0.4); position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; flex-wrap: wrap; }
+.webcam-btn { padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.08); color: var(--text); cursor: pointer; font-size: 0.82em; transition: all 0.2s; }
+.webcam-btn:hover { background: rgba(255,255,255,0.15); }
+.webcam-btn.active { background: var(--accent); border-color: var(--accent); }
+.webcam-btn.success { background: var(--success); border-color: var(--success); color: #fff; }
+.status-indicator { position: absolute; top: 10px; left: 10px; display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: rgba(0,0,0,0.6); border-radius: 20px; font-size: 0.78em; z-index: 10; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.status-dot.active { background: var(--success); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.face-info { position: absolute; top: 10px; right: 10px; padding: 5px 10px; background: rgba(0,0,0,0.6); border-radius: 20px; font-size: 0.78em; z-index: 10; display: none; }
+.debug-panel { position: absolute; top: 40px; left: 10px; padding: 6px 10px; background: rgba(0,0,0,0.75); border-radius: 8px; font-size: 0.7em; z-index: 10; font-family: monospace; line-height: 1.6; max-width: 260px; }
+.debug-panel div { white-space: nowrap; }
+.debug-ok { color: var(--success); }
+.debug-warn { color: #ffaa00; }
+.debug-err { color: var(--danger); }
+.canvas-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.canvas-wrapper { position: relative; width: 100%; aspect-ratio: 4/3; background: #1a1a2a; cursor: crosshair; }
+#drawCanvas { width: 100%; height: 100%; }
+.canvas-actions { display: flex; gap: 6px; padding: 10px; flex-wrap: wrap; }
+.canvas-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text); cursor: pointer; font-size: 0.78em; transition: all 0.2s; }
+.canvas-btn:hover { background: rgba(255,255,255,0.12); }
+.canvas-btn.danger { border-color: var(--danger); color: var(--danger); }
+.canvas-btn.danger:hover { background: rgba(225,112,85,0.15); }
+.canvas-btn.primary { border-color: var(--accent); color: var(--accent2); }
+.canvas-btn.primary:hover { background: rgba(108,92,231,0.2); }
+.tools-section { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+.color-picker-area { padding: 14px; }
+#colorWheel { width: 180px; height: 180px; margin: 0 auto 10px; display: block; cursor: crosshair; border-radius: 50%; border: 2px solid var(--border); }
+.color-preview { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.current-color { width: 36px; height: 36px; border-radius: 8px; border: 2px solid var(--border); }
+.color-hex { font-family: 'Courier New', monospace; font-size: 0.85em; color: var(--text-dim); }
+.slider-group { padding: 12px 16px; }
+.slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.82em; }
+.slider-value { color: var(--accent2); font-weight: 600; min-width: 36px; text-align: right; }
+input[type="range"] { -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px; background: var(--border); outline: none; margin-bottom: 12px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.templates-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; }
+.template-card { aspect-ratio: 1; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; transition: all 0.25s; overflow: hidden; position: relative; background: #1a1a2a; }
+.template-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(108,92,231,0.3); }
+.template-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,92,231,0.4); }
+.template-card canvas { width: 100%; height: 100%; }
+.template-name { position: absolute; bottom: 0; left: 0; right: 0; padding: 3px; background: rgba(0,0,0,0.7); font-size: 0.68em; text-align: center; }
+.quick-colors { display: flex; gap: 5px; padding: 8px 16px; flex-wrap: wrap; }
+.quick-color { width: 24px; height: 24px; border-radius: 5px; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; }
+.quick-color:hover { transform: scale(1.15); border-color: #fff; }
+.mapping-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.68em; background: var(--accent); color: white; margin-left: auto; }
+.loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 12px; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.brush-preview { width: 50px; height: 50px; margin: 8px auto; position: relative; background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 10px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.brush-preview-inner { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); border-radius: 50%; }
+.eraser-indicator { position: fixed; pointer-events: none; border: 2px dashed rgba(255,255,255,0.6); border-radius: 50%; z-index: 9999; display: none; }
+@media (max-width: 1200px) { .main-container { flex-direction: column; } .tools-section { width: 100%; flex-direction: row; flex-wrap: wrap; } .tools-section > * { flex: 1; min-width: 260px; } }
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎭 脸谱工坊 Face Mask Studio</h1>
+  <p>绘制脸谱 → 实时映射到人脸 · 支持画笔自定义与预制模板</p>
+</div>
+
+<div class="main-container">
+  <!-- Webcam -->
+  <div class="webcam-section panel">
+    <div class="panel-title">📷 实时摄像头 <span class="mapping-badge" id="mappingBadge" style="display:none">映射中</span></div>
+    <div class="webcam-container">
+      <video id="webcamVideo" autoplay muted playsinline></video>
+      <canvas id="faceOverlay"></canvas>
+      <div class="status-indicator"><div class="status-dot" id="statusDot"></div><span id="statusText">未启动</span></div>
+      <div class="face-info" id="faceInfo"></div>
+      <div class="debug-panel" id="debugPanel">
+        <div>📦 模型: <span id="dbgModel" class="debug-warn">加载中...</span></div>
+        <div>📷 摄像头: <span id="dbgCam" class="debug-warn">未启动</span></div>
+        <div>👤 检测: <span id="dbgDetect">-</span></div>
+        <div>🎭 映射: <span id="dbgMap">关闭</span></div>
+        <div>🎨 画板: <span id="dbgCanvas">-</span></div>
+        <div>📐 坐标: <span id="dbgCoord">-</span></div>
+      </div>
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <span id="loadingText">正在加载人脸检测模型...</span>
+        <span style="font-size:0.75em;color:var(--text-dim)" id="loadingHint"></span>
+      </div>
+      <div class="webcam-controls">
+        <button class="webcam-btn" id="btnStartCam" onclick="startCamera()">📷 启动摄像头</button>
+        <button class="webcam-btn" id="btnToggleMap" onclick="toggleMapping()">🎭 开启映射</button>
+        <button class="webcam-btn" id="btnTestMap" onclick="testProjection()">🧪 测试投影</button>
+        <button class="webcam-btn" id="btnSnapshot" onclick="takeSnapshot()">📸 截图</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drawing Canvas -->
+  <div class="canvas-section panel">
+    <div class="panel-title">🎨 脸谱画板</div>
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <canvas id="drawCanvas"></canvas>
+    </div>
+    <div class="canvas-actions">
+      <button class="canvas-btn" onclick="setTool('brush')">🖌️ 画笔</button>
+      <button class="canvas-btn" onclick="setTool('eraser')">🧹 橡皮</button>
+      <button class="canvas-btn primary" onclick="applyToFace()">✅ 应用到人脸</button>
+      <button class="canvas-btn danger" onclick="clearCanvas()">🗑️ 清空</button>
+      <button class="canvas-btn" onclick="undoAction()">↩️ 撤销</button>
+      <button class="canvas-btn" onclick="saveMask()">💾 保存</button>
+    </div>
+  </div>
+
+  <!-- Tools -->
+  <div class="tools-section">
+    <div class="panel">
+      <div class="panel-title">🎨 颜色选择</div>
+      <div class="color-picker-area">
+        <canvas id="colorWheel" width="180" height="180"></canvas>
+        <div class="color-preview">
+          <div class="current-color" id="currentColor" style="background:#ff0000"></div>
+          <div><div class="color-hex" id="colorHex">#FF0000</div><div style="font-size:0.7em;color:var(--text-dim)">点击色盘选取颜色</div></div>
+        </div>
+      </div>
+      <div class="quick-colors" id="quickColors"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">⚙️ 画笔设置</div>
+      <div class="slider-group">
+        <div class="slider-label"><span>画笔大小</span><span class="slider-value" id="sizeVal">12px</span></div>
+        <input type="range" id="brushSize" min="1" max="80" value="12" oninput="updateBrushSize(this.value)">
+        <div class="slider-label"><span>透明度</span><span class="slider-value" id="opacityVal">100%</span></div>
+        <input type="range" id="brushOpacity" min="5" max="100" value="100" oninput="updateOpacity(this.value)">
+      </div>
+      <div class="brush-preview"><div class="brush-preview-inner" id="brushPreviewInner"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🎭 预制脸谱</div>
+      <div class="templates-grid" id="templatesGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="eraser-indicator" id="eraserIndicator"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+// ========== STATE ==========
+const state = {
+  currentColor: '#ff0000', brushSize: 12, brushOpacity: 1.0,
+  tool: 'brush', isDrawing: false, lastX: 0, lastY: 0,
+  cameraActive: false, mappingActive: false, faceDetected: false,
+  history: [], maxHistory: 30, modelLoaded: false,
+  detecting: false,
+  lastDetections: [],
+  drawCanvasDirty: true,
+  // 调试用：记录最后一次投影参数
+  lastProjDebug: null,
+};
+
+const drawCanvas = document.getElementById('drawCanvas');
+const drawCtx = drawCanvas.getContext('2d');
+const webcamVideo = document.getElementById('webcamVideo');
+const faceOverlay = document.getElementById('faceOverlay');
+const faceCtx = faceOverlay.getContext('2d');
+const colorWheelCanvas = document.getElementById('colorWheel');
+const colorWheelCtx = colorWheelCanvas.getContext('2d');
+
+// ========== 调试工具 ==========
+function dbg(id, text, cls) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = cls || ''; }
+}
+
+function updateDebugCanvas() {
+  const w = drawCanvas.width, h = drawCanvas.height;
+  const sampleSize = 20;
+  const imageData = drawCtx.getImageData(0, 0, w, h).data;
+  let nonEmpty = 0;
+  for (let i = 0; i < imageData.length; i += 4 * Math.floor(imageData.length / (sampleSize * 4))) {
+    if (imageData[i+3] > 10) nonEmpty++;
+  }
+  state.drawCanvasDirty = nonEmpty > 5;
+  dbg('dbgCanvas', state.drawCanvasDirty ? '有内容 ✓' : '空白 ✗', state.drawCanvasDirty ? 'debug-ok' : 'debug-err');
+}
+
+// ========== INIT ==========
+function init() {
+  setupCanvas();
+  drawColorWheel();
+  setupQuickColors();
+  generateTemplates();
+  setupCanvasEvents();
+  updateBrushPreview();
+  loadModels();
+  setInterval(() => {
+    if (state.cameraActive) {
+      dbg('dbgCam', `${webcamVideo.videoWidth}x${webcamVideo.videoHeight} ✓`, 'debug-ok');
+    }
+    dbg('dbgMap', state.mappingActive ? '开启 ✓' : '关闭', state.mappingActive ? 'debug-ok' : '');
+    updateDebugCanvas();
+  }, 1000);
+}
+
+function setupCanvas() {
+  const wrapper = document.getElementById('canvasWrapper');
+  const rect = wrapper.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  drawCanvas.width = w * 2;
+  drawCanvas.height = h * 2;
+  drawCanvas.style.width = w + 'px';
+  drawCanvas.style.height = h + 'px';
+  drawCtx.scale(2, 2);
+  drawCtx.clearRect(0, 0, w, h);
+  drawFaceGuide(drawCtx, w, h);
+  saveHistory();
+}
+
+function drawFaceGuide(ctx, w, h) {
+  const cx = w/2, cy = h/2;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.ellipse(cx, cy, w*0.28, h*0.36, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx-w*0.12, cy-h*0.06, w*0.06, h*0.035, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx+w*0.12, cy-h*0.06, w*0.06, h*0.035, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy-h*0.02); ctx.lineTo(cx-w*0.03, cy+h*0.08); ctx.lineTo(cx+w*0.03, cy+h*0.08); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx, cy+h*0.16, w*0.1, h*0.04, 0, 0, Math.PI); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('在此绘制脸谱图案', cx, h-16);
+}
+
+// ========== COLOR WHEEL ==========
+function drawColorWheel() {
+  const c = colorWheelCanvas, ctx = colorWheelCtx;
+  const cx = c.width/2, cy = c.height/2, r = cx-4;
+  for (let a = 0; a < 360; a += 0.5) {
+    const s = (a-1)*Math.PI/180, e = (a+1)*Math.PI/180;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,s,e); ctx.closePath();
+    const g = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0,'#fff'); g.addColorStop(0.5,`hsl(${a},100%,50%)`); g.addColorStop(1,`hsl(${a},100%,25%)`);
+    ctx.fillStyle = g; ctx.fill();
+  }
+}
+colorWheelCanvas.addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  const x = (e.clientX-rect.left)*(this.width/rect.width);
+  const y = (e.clientY-rect.top)*(this.height/rect.height);
+  const px = colorWheelCtx.getImageData(x,y,1,1).data;
+  if (px[3]>0) {
+    state.currentColor = rgbToHex(px[0],px[1],px[2]);
+    document.getElementById('currentColor').style.background = state.currentColor;
+    document.getElementById('colorHex').textContent = state.currentColor.toUpperCase();
+  }
+});
+
+function setupQuickColors() {
+  ['#ff0000','#ff4444','#ff6600','#ffaa00','#ffdd00','#00cc00','#00aa66','#0088ff','#0044cc','#6600cc','#cc00cc','#ff0066','#ffffff','#cccccc','#888888','#444444','#222222','#000000','#8B4513','#DAA520'].forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'quick-color'; el.style.background = c;
+    el.onclick = () => { state.currentColor = c; document.getElementById('currentColor').style.background = c; document.getElementById('colorHex').textContent = c.toUpperCase(); };
+    document.getElementById('quickColors').appendChild(el);
+  });
+}
+
+// ========== BRUSH ==========
+function updateBrushSize(v) { state.brushSize = +v; document.getElementById('sizeVal').textContent = v+'px'; updateBrushPreview(); }
+function updateOpacity(v) { state.brushOpacity = v/100; document.getElementById('opacityVal').textContent = v+'%'; updateBrushPreview(); }
+function updateBrushPreview() {
+  const inner = document.getElementById('brushPreviewInner');
+  const s = Math.max(5, state.brushSize*0.6);
+  inner.style.width = s+'px'; inner.style.height = s+'px';
+  inner.style.background = state.currentColor; inner.style.opacity = state.brushOpacity;
+}
+function setTool(t) { state.tool = t; document.getElementById('canvasWrapper').style.cursor = t==='eraser'?'none':'crosshair'; }
+
+// ========== DRAWING ==========
+function setupCanvasEvents() {
+  function getPos(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX-rect.left, y: t.clientY-rect.top };
+  }
+  function start(e) { e.preventDefault(); state.isDrawing = true; const p = getPos(e); state.lastX = p.x; state.lastY = p.y; draw(p.x,p.y,p.x+0.1,p.y+0.1); }
+  function move(e) { e.preventDefault(); if (!state.isDrawing) return; const p = getPos(e); draw(state.lastX,state.lastY,p.x,p.y); state.lastX = p.x; state.lastY = p.y; }
+  function end() { if (state.isDrawing) { state.isDrawing = false; saveHistory(); } }
+  drawCanvas.addEventListener('mousedown', start);
+  drawCanvas.addEventListener('mousemove', move);
+  drawCanvas.addEventListener('mouseup', end);
+  drawCanvas.addEventListener('mouseleave', end);
+  drawCanvas.addEventListener('touchstart', start, {passive:false});
+  drawCanvas.addEventListener('touchmove', move, {passive:false});
+  drawCanvas.addEventListener('touchend', end);
+  document.getElementById('canvasWrapper').addEventListener('mousemove', e => {
+    const ind = document.getElementById('eraserIndicator');
+    if (state.tool==='eraser') { ind.style.display='block'; const s=state.brushSize*2; ind.style.width=s+'px'; ind.style.height=s+'px'; ind.style.left=(e.clientX-s/2)+'px'; ind.style.top=(e.clientY-s/2)+'px'; }
+    else ind.style.display='none';
+  });
+  document.getElementById('canvasWrapper').addEventListener('mouseleave', () => { document.getElementById('eraserIndicator').style.display='none'; });
+}
+
+function draw(x1,y1,x2,y2) {
+  drawCtx.save();
+  drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round'; drawCtx.lineWidth = state.brushSize;
+  if (state.tool==='eraser') {
+    drawCtx.globalCompositeOperation = 'destination-out';
+    drawCtx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    drawCtx.globalCompositeOperation = 'source-over';
+    drawCtx.globalAlpha = state.brushOpacity;
+    drawCtx.strokeStyle = state.currentColor;
+  }
+  drawCtx.beginPath(); drawCtx.moveTo(x1,y1); drawCtx.lineTo(x2,y2); drawCtx.stroke();
+  drawCtx.restore();
+}
+
+// ========== HISTORY ==========
+function saveHistory() { state.history.push(drawCanvas.toDataURL()); if (state.history.length > state.maxHistory) state.history.shift(); }
+function undoAction() {
+  if (state.history.length <= 1) return;
+  state.history.pop();
+  const img = new Image();
+  img.onload = () => { const w=drawCanvas.width/2, h=drawCanvas.height/2; drawCtx.clearRect(0,0,w,h); drawCtx.drawImage(img,0,0,w,h); };
+  img.src = state.history[state.history.length-1];
+}
+function clearCanvas() {
+  const w=drawCanvas.width/2, h=drawCanvas.height/2;
+  drawCtx.clearRect(0,0,w,h);
+  drawFaceGuide(drawCtx,w,h);
+  saveHistory();
+}
+
+// ========== 模型加载 ==========
+async function loadModels() {
+  const overlay = document.getElementById('loadingOverlay');
+  const hint = document.getElementById('loadingHint');
+  const loadingText = document.getElementById('loadingText');
+
+  if (typeof faceapi === 'undefined') {
+    loadingText.textContent = '⚠️ face-api.js 加载失败';
+    hint.textContent = '请检查网络连接，刷新页面重试';
+    dbg('dbgModel', '脚本未加载 ✗', 'debug-err');
+    return;
+  }
+
+  const urls = [
+    'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights',
+    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model',
+    './weights',
+  ];
+
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      hint.textContent = `尝试加载方式 ${i+1}/${urls.length}...`;
+      loadingText.textContent = '正在加载人脸检测模型...';
+      dbg('dbgModel', `加载中 (${i+1}/${urls.length})...`, 'debug-warn');
+      console.log(`[FaceMask] Trying model source ${i+1}: ${urls[i]}`);
+
+      await faceapi.nets.tinyFaceDetector.loadFromUri(urls[i]);
+      await faceapi.nets.faceLandmark68TinyNet.loadFromUri(urls[i]);
+
+      state.modelLoaded = true;
+      overlay.style.display = 'none';
+      dbg('dbgModel', '已加载 ✓', 'debug-ok');
+      console.log('[FaceMask] ✅ Models loaded from:', urls[i]);
+
+      if (state.cameraActive && !state.detecting) {
+        startDetectionLoop();
+      }
+      return;
+    } catch(e) {
+      console.warn(`[FaceMask] ❌ Model source ${i+1} failed:`, e.message);
+      dbg('dbgModel', `源${i+1}失败, 重试...`, 'debug-warn');
+    }
+  }
+
+  loadingText.textContent = '⚠️ 模型加载失败';
+  hint.textContent = '请检查网络连接后刷新页面重试';
+  dbg('dbgModel', '全部失败 ✗', 'debug-err');
+}
+
+// ========== 摄像头 ==========
+async function startCamera() {
+  try {
+    dbg('dbgCam', '启动中...', 'debug-warn');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:{ideal:640}, height:{ideal:480}, facingMode:'user' }
+    });
+    webcamVideo.srcObject = stream;
+    state.cameraActive = true;
+    document.getElementById('statusDot').classList.add('active');
+    document.getElementById('statusText').textContent = '摄像头已启动';
+    document.getElementById('btnStartCam').classList.add('active');
+    document.getElementById('btnStartCam').textContent = '📷 运行中';
+
+    webcamVideo.addEventListener('loadedmetadata', () => {
+      faceOverlay.width = webcamVideo.videoWidth;
+      faceOverlay.height = webcamVideo.videoHeight;
+      console.log(`[FaceMask] Video: ${webcamVideo.videoWidth}x${webcamVideo.videoHeight}`);
+      dbg('dbgCam', `${webcamVideo.videoWidth}x${webcamVideo.videoHeight} ✓`, 'debug-ok');
+    });
+
+    startDetectionLoop();
+  } catch(e) {
+    console.error('[FaceMask] Camera error:', e);
+    document.getElementById('statusText').textContent = '❌ 启动失败';
+    dbg('dbgCam', '启动失败 ✗', 'debug-err');
+  }
+}
+
+// ========== 人脸检测循环 ==========
+function startDetectionLoop() {
+  if (state.detecting) return;
+  state.detecting = true;
+  console.log('[FaceMask] Detection loop started');
+  requestAnimationFrame(detectFaces);
+}
+
+async function detectFaces() {
+  if (!state.detecting) return;
+
+  if (!state.modelLoaded || !state.cameraActive || !webcamVideo.videoWidth) {
+    requestAnimationFrame(detectFaces);
+    return;
+  }
+
+  try {
+    if (faceOverlay.width !== webcamVideo.videoWidth || faceOverlay.height !== webcamVideo.videoHeight) {
+      faceOverlay.width = webcamVideo.videoWidth;
+      faceOverlay.height = webcamVideo.videoHeight;
+    }
+
+    const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 });
+    const detections = await faceapi.detectAllFaces(webcamVideo, opts).withFaceLandmarks(true);
+
+    faceCtx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+
+    if (detections.length > 0) {
+      state.faceDetected = true;
+      state.lastDetections = detections;
+      document.getElementById('faceInfo').style.display = 'block';
+      document.getElementById('faceInfo').textContent = `👤 ${detections.length}张人脸`;
+      dbg('dbgDetect', `${detections.length}张 ✓`, 'debug-ok');
+
+      if (state.mappingActive) {
+        for (const det of detections) {
+          drawMaskOnFace(det);
+        }
+      }
+    } else {
+      state.faceDetected = false;
+      state.lastDetections = [];
+      document.getElementById('faceInfo').style.display = 'none';
+      dbg('dbgDetect', '未检测到', 'debug-warn');
+    }
+  } catch(e) {
+    console.error('[FaceMask] Detection error:', e);
+    dbg('dbgDetect', '错误: ' + e.message, 'debug-err');
+  }
+
+  requestAnimationFrame(detectFaces);
+}
+
+// ========== 遮罩投影 (直接在overlay上绘制，避免临时画布问题) ==========
+function drawMaskOnFace(detection) {
+  // 用 detection box 直接定位（比 landmarks 更稳定、居中）
+  const box = detection.detection.box;
+
+  // box 坐标是原始视频空间（非镜像）
+  const bx = Math.round(box.x);
+  const by = Math.round(box.y);
+  const bw = Math.round(box.width);
+  const bh = Math.round(box.height);
+
+  // 稍微扩展，覆盖额头和太阳穴
+  const expandX = Math.round(bw * 0.12);
+  const expandTop = Math.round(bh * 0.18);
+  const expandBot = Math.round(bh * 0.08);
+
+  const drawX = bx - expandX;
+  const drawY = by - expandTop;
+  const drawW = bw + expandX * 2;
+  const drawH = bh + expandTop + expandBot;
+
+  dbg('dbgCoord', `box:${bx},${by} ${bw}x${bh} → draw:${drawX},${drawY} ${drawW}x${drawH}`, 'debug-ok');
+
+  // overlay 和 video 都有 CSS transform: scaleX(-1)，同步镜像
+  // 直接用原始坐标绘制
+  faceCtx.save();
+  faceCtx.beginPath();
+  faceCtx.ellipse(
+    drawX + drawW / 2,
+    drawY + drawH / 2,
+    drawW / 2,
+    drawH / 2,
+    0, 0, Math.PI * 2
+  );
+  
+  
+  faceCtx.clip();
+  faceCtx.drawImage(
+    drawCanvas,
+    0, 0, drawCanvas.width, drawCanvas.height,
+    drawX, drawY, drawW, drawH
+  );
+  faceCtx.restore();
+}
+
+// ========== 测试投影 ==========
+function testProjection() {
+  if (!state.cameraActive) {
+    alert('请先启动摄像头');
+    return;
+  }
+
+  faceOverlay.width = webcamVideo.videoWidth;
+  faceOverlay.height = webcamVideo.videoHeight;
+  const vw = faceOverlay.width;
+  const vh = faceOverlay.height;
+
+  faceCtx.clearRect(0, 0, vw, vh);
+
+  // 测试1：半透明红色全屏 — 确认 overlay 可绘制
+  faceCtx.save();
+  faceCtx.fillStyle = 'rgba(255, 0, 0, 0.35)';
+  faceCtx.fillRect(0, 0, vw, vh);
+  faceCtx.restore();
+
+  // 测试2：直接 drawImage 画板内容到中央（无临时画布）
+  const size = Math.min(vw, vh) * 0.5;
+  const x = (vw - size) / 2;
+  const y = (vh - size) / 2;
+  faceCtx.save();
+  faceCtx.globalAlpha = 0.9;
+  faceCtx.drawImage(drawCanvas, 0, 0, drawCanvas.width, drawCanvas.height, x, y, size, size);
+  faceCtx.restore();
+
+  // 测试3：如果检测到人脸，画 landmark 绿点
+  if (state.lastDetections.length > 0) {
+    const pos = state.lastDetections[0].landmarks.positions;
+    faceCtx.save();
+    faceCtx.fillStyle = '#00ff00';
+    for (let i = 0; i < pos.length; i++) {
+      faceCtx.beginPath();
+      faceCtx.arc(pos[i].x, pos[i].y, 3, 0, Math.PI * 2);
+      faceCtx.fill();
+    }
+    faceCtx.restore();
+  }
+
+  console.log('[FaceMask] Test: overlay=' + vw + 'x' + vh + ' canvas=' + drawCanvas.width + 'x' + drawCanvas.height);
+  dbg('dbgDetect', '测试投影中...', 'debug-ok');
+
+  setTimeout(() => {
+    if (!state.mappingActive) {
+      faceCtx.clearRect(0, 0, vw, vh);
+      dbg('dbgDetect', '-', '');
+    }
+  }, 5000);
+}
+
+// ========== 映射控制 ==========
+function toggleMapping() {
+  state.mappingActive = !state.mappingActive;
+  const btn = document.getElementById('btnToggleMap');
+  const badge = document.getElementById('mappingBadge');
+  if (state.mappingActive) {
+    btn.classList.add('active'); btn.textContent = '🎭 关闭映射'; badge.style.display = 'inline-block';
+  } else {
+    btn.classList.remove('active'); btn.textContent = '🎭 开启映射'; badge.style.display = 'none';
+    faceCtx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+  }
+}
+
+function applyToFace() {
+  if (!state.mappingActive) toggleMapping();
+}
+
+function takeSnapshot() {
+  const tc = document.createElement('canvas');
+  tc.width = faceOverlay.width; tc.height = faceOverlay.height;
+  const tctx = tc.getContext('2d');
+  // 镜像绘制视频（与CSS显示一致）
+  tctx.save(); tctx.translate(tc.width, 0); tctx.scale(-1,1);
+  tctx.drawImage(webcamVideo, 0, 0, tc.width, tc.height);
+  // overlay 也有 CSS 镜像，同样镜像绘制
+  tctx.drawImage(faceOverlay, 0, 0, tc.width, tc.height);
+  tctx.restore();
+  const a = document.createElement('a');
+  a.download = 'face-mask-snapshot.png'; a.href = tc.toDataURL('image/png'); a.click();
+}
+
+function saveMask() {
+  const a = document.createElement('a');
+  a.download = 'face-mask.png'; a.href = drawCanvas.toDataURL('image/png'); a.click();
+}
+
+// ========== TEMPLATES ==========
+const templates = [
+  { name: '关公红脸', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#cc0000'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.moveTo(w*0.15,h*0.25); ctx.lineTo(w*0.38,h*0.2); ctx.lineTo(w*0.4,h*0.26); ctx.lineTo(w*0.17,h*0.31); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(w*0.85,h*0.25); ctx.lineTo(w*0.62,h*0.2); ctx.lineTo(w*0.6,h*0.26); ctx.lineTo(w*0.83,h*0.31); ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(w*0.2,h*0.34); ctx.quadraticCurveTo(w*0.3,h*0.3,w*0.4,h*0.34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.8,h*0.34); ctx.quadraticCurveTo(w*0.7,h*0.3,w*0.6,h*0.34); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(w*0.48,h*0.38); ctx.lineTo(w*0.44,h*0.52); ctx.lineTo(w*0.56,h*0.52); ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(w*0.35,h*0.62); ctx.quadraticCurveTo(w*0.5,h*0.58,w*0.65,h*0.62); ctx.stroke();
+  }},
+  { name: '曹操白脸', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#f5f0e0'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.moveTo(w*0.18,h*0.34); ctx.quadraticCurveTo(w*0.3,h*0.3,w*0.42,h*0.34); ctx.quadraticCurveTo(w*0.3,h*0.37,w*0.18,h*0.34); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(w*0.82,h*0.34); ctx.quadraticCurveTo(w*0.7,h*0.3,w*0.58,h*0.34); ctx.quadraticCurveTo(w*0.7,h*0.37,w*0.82,h*0.34); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(w*0.15,h*0.28); ctx.quadraticCurveTo(w*0.3,h*0.22,w*0.42,h*0.27); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.85,h*0.28); ctx.quadraticCurveTo(w*0.7,h*0.22,w*0.58,h*0.27); ctx.stroke();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(w*0.5,h*0.36); ctx.lineTo(w*0.5,h*0.5); ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(w*0.35,h*0.6); ctx.lineTo(w*0.65,h*0.6); ctx.stroke();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.moveTo(w*0.45,h*0.1); ctx.lineTo(w*0.5,h*0.18); ctx.lineTo(w*0.55,h*0.1); ctx.fill();
+  }},
+  { name: '孙悟空', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#e8a020'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#f0c060'; ctx.beginPath(); ctx.ellipse(w*0.5,h*0.5,w*0.35,h*0.4,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#cc2200';
+    ctx.beginPath(); ctx.ellipse(w*0.3,h*0.35,w*0.15,h*0.08,-0.1,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.7,h*0.35,w*0.15,h*0.08,0.1,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#DAA520'; ctx.fillRect(w*0.1,h*0.18,w*0.8,h*0.06);
+    ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(w*0.5,h*0.21,w*0.03,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(w*0.32,h*0.36,w*0.08,h*0.05,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.68,h*0.36,w*0.08,h*0.05,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath(); ctx.arc(w*0.32,h*0.36,w*0.04,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w*0.68,h*0.36,w*0.04,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(w*0.38,h*0.58); ctx.quadraticCurveTo(w*0.5,h*0.65,w*0.62,h*0.58); ctx.stroke();
+  }},
+  { name: '包拯黑脸', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(w*0.5,h*0.15,w*0.1,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(w*0.52,h*0.13,w*0.08,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(w*0.3,h*0.35,w*0.09,h*0.05,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.7,h*0.35,w*0.09,h*0.05,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(w*0.3,h*0.35,w*0.04,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w*0.7,h*0.35,w*0.04,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(w*0.18,h*0.27); ctx.lineTo(w*0.42,h*0.25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.82,h*0.27); ctx.lineTo(w*0.58,h*0.25); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(w*0.48,h*0.38); ctx.lineTo(w*0.44,h*0.5); ctx.lineTo(w*0.56,h*0.5); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(w*0.35,h*0.6); ctx.lineTo(w*0.65,h*0.6); ctx.stroke();
+  }},
+  { name: '旦角', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#fce4ec'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = 'rgba(255,100,100,0.3)';
+    ctx.beginPath(); ctx.ellipse(w*0.25,h*0.45,w*0.12,h*0.06,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.75,h*0.45,w*0.12,h*0.06,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(w*0.2,h*0.34); ctx.quadraticCurveTo(w*0.3,h*0.28,w*0.4,h*0.34); ctx.quadraticCurveTo(w*0.3,h*0.38,w*0.2,h*0.34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.8,h*0.34); ctx.quadraticCurveTo(w*0.7,h*0.28,w*0.6,h*0.34); ctx.quadraticCurveTo(w*0.7,h*0.38,w*0.8,h*0.34); ctx.stroke();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(w*0.2,h*0.27); ctx.quadraticCurveTo(w*0.3,h*0.22,w*0.4,h*0.26); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.8,h*0.27); ctx.quadraticCurveTo(w*0.7,h*0.22,w*0.6,h*0.26); ctx.stroke();
+    ctx.fillStyle = '#cc3333'; ctx.beginPath(); ctx.ellipse(w*0.5,h*0.58,w*0.06,h*0.03,0,0,Math.PI*2); ctx.fill();
+  }},
+  { name: '张飞黑十字门', draw: (ctx, w, h) => {
+    ctx.fillStyle = '#222'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(w*0.44,h*0.08,w*0.12,h*0.35);
+    ctx.fillRect(w*0.15,h*0.22,w*0.7,h*0.08);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(w*0.3,h*0.38,w*0.1,h*0.06,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.7,h*0.38,w*0.1,h*0.06,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(w*0.3,h*0.38,w*0.05,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w*0.7,h*0.38,w*0.05,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#eee';
+    ctx.beginPath(); ctx.moveTo(w*0.48,h*0.42); ctx.lineTo(w*0.42,h*0.54); ctx.lineTo(w*0.58,h*0.54); ctx.fill();
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(w*0.28,h*0.64); ctx.quadraticCurveTo(w*0.5,h*0.72,w*0.72,h*0.64); ctx.stroke();
+  }}
+];
+
+function generateTemplates() {
+  const grid = document.getElementById('templatesGrid');
+  templates.forEach((tmpl, i) => {
+    const card = document.createElement('div'); card.className = 'template-card';
+    const c = document.createElement('canvas'); c.width = 200; c.height = 200;
+    tmpl.draw(c.getContext('2d'), 200, 200);
+    card.appendChild(c);
+    const n = document.createElement('div'); n.className = 'template-name'; n.textContent = tmpl.name;
+    card.appendChild(n);
+    card.addEventListener('click', () => loadTemplate(i));
+    grid.appendChild(card);
+  });
+}
+
+function loadTemplate(idx) {
+  const tmpl = templates[idx];
+  const w = drawCanvas.width/2, h = drawCanvas.height/2;
+  drawCtx.clearRect(0,0,w,h);
+  tmpl.draw(drawCtx, w, h);
+  saveHistory();
+  document.querySelectorAll('.template-card').forEach((c,i) => c.classList.toggle('selected', i===idx));
+}
+
+// ========== UTILS ==========
+function rgbToHex(r,g,b) { return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+
+// ========== RESIZE ==========
+window.addEventListener('resize', () => {
+  const wrapper = document.getElementById('canvasWrapper');
+  const rect = wrapper.getBoundingClientRect();
+  if (Math.abs(drawCanvas.width/2 - rect.width) > 10) {
+    const imgData = drawCanvas.toDataURL();
+    drawCanvas.width = rect.width*2; drawCanvas.height = rect.height*2;
+    drawCanvas.style.width = rect.width+'px'; drawCanvas.style.height = rect.height+'px';
+    drawCtx.scale(2,2);
+    const img = new Image(); img.onload = () => drawCtx.drawImage(img,0,0,rect.width,rect.height); img.src = imgData;
+  }
+});
+
+init();
+</script>
+</body>
+</html>
